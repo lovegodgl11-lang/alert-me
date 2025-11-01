@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en" class=""><head><script>window.livecodes = window.livecodes || {};</script><title>Untitled Project</title><meta name="title" content="Untitled Project"><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="stylesheet" href="./style.css"><script src="https://cdn.jsdelivr.net/npm/es-module-shims@1.10.0/dist/es-module-shims.js" async=""></script><script type="importmap">{
+  "imports": {}
+}</script></head><body>
+
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Alerts - Navrose Stitching Point</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f1f5f9;
+        }
+        .alert-card {
+            transition: all 0.2s ease-in-out;
+            border-left-width: 5px;
+        }
+        .alert-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+        .speak-btn:hover svg {
+            transform: scale(1.2);
+        }
+        #speak-all-btn.speaking, #auto-speak-status.speaking {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .7; }
+        }
+        /* Toggle Switch */
+        .switch { position: relative; display: inline-block; width: 60px; height: 34px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; }
+        .slider:before { position: absolute; content: ""; height: 26px; width: 26px; left: 4px; bottom: 4px; background-color: white; transition: .4s; }
+        input:checked + .slider { background-color: #4f46e5; }
+        input:checked + .slider:before { transform: translateX(26px); }
+        .slider.round { border-radius: 34px; }
+        .slider.round:before { border-radius: 50%; }
+    </style>
+
+
+
+    <main class="max-w-7xl mx-auto">
+        <header class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8">
+            <div>
+                <h1 class="text-3xl font-extrabold text-slate-800">Automated Alert System</h1>
+                <div class="flex items-center gap-2 mt-1">
+                    <div id="auto-speak-status" class="w-3 h-3 bg-green-500 rounded-full speaking"></div>
+                    <p id="system-status-text" class="text-slate-500">Auto-speak is ON. Listening for updates...</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2">
+                    <span class="font-medium text-sm text-slate-600">Auto-Speak</span>
+                    <label class="switch">
+                        <input type="checkbox" id="auto-speak-toggle" checked="">
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+                <button id="speak-all-btn" class="bg-indigo-600 text-white font-bold py-3 px-6 rounded-lg shadow-md hover:bg-indigo-700 transition-all flex items-center gap-3 disabled:bg-indigo-300 disabled:cursor-not-allowed">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path>
+                    </svg>
+                    <span>Speak All Alerts</span>
+                </button>
+                 <a href="index.html" class="text-sm font-semibold text-indigo-600 hover:text-indigo-800 flex-shrink-0">Main App</a>
+            </div>
+        </header>
+
+        <div id="alerts-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Alert sections will be populated here -->
+        </div>
+        
+        <div id="no-alerts-message" class="hidden text-center py-20">
+            <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-16 w-16 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <h2 class="mt-4 text-2xl font-semibold text-slate-700">All Clear!</h2>
+            <p class="text-slate-500">There are no pending alerts right now.</p>
+        </div>
+    </main>
+
+    <audio id="notification-sound" src="https://freesound.org/data/previews/415/415763_6142149-lq.mp3" preload="auto"></audio>
+
+<script>
+    const alertsContainer = document.getElementById('alerts-container');
+    const noAlertsMessage = document.getElementById('no-alerts-message');
+    const speakAllBtn = document.getElementById('speak-all-btn');
+    const autoSpeakToggle = document.getElementById('auto-speak-toggle');
+    const systemStatusText = document.getElementById('system-status-text');
+    const statusIndicator = document.getElementById('auto-speak-status');
+    const notificationSound = document.getElementById('notification-sound');
+
+    let allOrders = [];
+    let allReminders = [];
+    let previousOrdersState = new Map();
+    
+    let voiceQueue = [];
+    let isSpeaking = false;
+    let autoSpeakEnabled = true;
+    let hourlyCheckTracker = {};
+
+    function speak(text, onEndCallback) {
+        if (!('speechSynthesis' in window)) {
+            console.warn("Speech synthesis not supported.");
+            if (onEndCallback) onEndCallback();
+            return;
+        }
+        speechSynthesis.cancel(); // Prioritize the new message
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'hi-IN';
+        utterance.rate = 0.95;
+        
+        let voices = speechSynthesis.getVoices();
+        let hindiVoice = voices.find(voice => voice.lang === 'hi-IN');
+        if (hindiVoice) {
+            utterance.voice = hindiVoice;
+        }
+        
+        utterance.onend = onEndCallback;
+        utterance.onerror = (e) => {
+            console.error("Speech synthesis error:", e);
+            if (onEndCallback) onEndCallback(); // Ensure queue continues
+        };
+        
+        speechSynthesis.speak(utterance);
+    }
+
+    function processQueue() {
+        if (isSpeaking || voiceQueue.length === 0) {
+            isSpeaking = false;
+            speakAllBtn.classList.remove('speaking');
+            speakAllBtn.querySelector('span').textContent = 'Speak All Alerts';
+            return;
+        }
+        isSpeaking = true;
+        speakAllBtn.classList.add('speaking');
+        speakAllBtn.querySelector('span').textContent = 'Speaking...';
+        
+        const text = voiceQueue.shift();
+        speak(text, processQueue);
+    }
+
+    function loadDataAndGenerateAlerts() {
+        try {
+            const ordersData = JSON.parse(localStorage.getItem('tailorOrders')) || [];
+            allOrders = ordersData.map(o => ({
+                ...o,
+                pipelineStatus: o.pipelineStatus || (o.status === 'Completed' ? 'completed' : 'new')
+            }));
+            
+            allReminders = JSON.parse(localStorage.getItem('tailorReminders')) || [];
+            
+            checkForChangesAndAnnounce();
+            generateVisualAlerts();
+            
+            // Update previous state for next check
+            previousOrdersState.clear();
+            allOrders.forEach(o => previousOrdersState.set(o.id, { status: o.status, pipelineStatus: o.pipelineStatus }));
+
+        } catch (e) {
+            console.error("Failed to parse data from local storage:", e);
+        }
+    }
+
+    function checkForChangesAndAnnounce() {
+        if (!autoSpeakEnabled) return;
+
+        const newAlerts = [];
+        
+        allOrders.forEach(order => {
+            const prevState = previousOrdersState.get(order.id);
+            
+            if (!prevState) {
+                // New order detected
+                notificationSound.play().catch(e => console.error("Audio playback error:", e));
+                let orderDetails = order.type === 'stitching' ? 'सिलाई का ऑर्डर' : 'अल्टरेशन का ऑर्डर';
+                if (order.type === 'bulk') orderDetails = 'बल्क ऑर्डर';
+                
+                const message = `नया ऑर्डर आया है। आर्डर नंबर ${order.orderNumber}, ${order.customerName} के लिए। ऑर्डर है, ${orderDetails}।`;
+                newAlerts.push(message);
+
+            } else if (prevState.pipelineStatus !== 'completed' && order.pipelineStatus === 'completed') {
+                // Order just completed
+                notificationSound.play().catch(e => console.error("Audio playback error:", e));
+                const message = `आर्डर नंबर ${order.orderNumber}, ${order.customerName} का, पूरा हो गया है।`;
+                newAlerts.push(message);
+            }
+        });
+        
+        if (newAlerts.length > 0) {
+            voiceQueue.push(...newAlerts);
+            if (!isSpeaking) {
+                processQueue();
+            }
+        }
+    }
+
+    function generateVisualAlerts() {
+        alertsContainer.innerHTML = '';
+        
+        const overdueAlerts = getOverdueAlerts();
+        const pickupAlerts = getPickupAlerts();
+        const reminderAlerts = getReminderAlerts();
+        
+        if (overdueAlerts.length > 0) renderAlertSection('Overdue Payments', 'border-red-500', overdueAlerts);
+        if (pickupAlerts.length > 0) renderAlertSection('Upcoming Pickups', 'border-amber-500', pickupAlerts);
+        if (reminderAlerts.length > 0) renderAlertSection('Pending Reminders', 'border-blue-500', reminderAlerts);
+
+        const totalAlerts = overdueAlerts.length + pickupAlerts.length + reminderAlerts.length;
+        noAlertsMessage.classList.toggle('hidden', totalAlerts > 0);
+        speakAllBtn.disabled = totalAlerts === 0;
+    }
+    
+    function getOverdueAlerts(generateVoice = false) {
+        const alerts = [];
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+        allOrders.forEach(order => {
+            const totalCharges = order.type === 'stitching' ? (order.items || []).reduce((s, i) => s + (parseFloat(i.charges) || 0), 0) : (parseFloat(order.charges) || 0);
+            const received = order.receivedPayment || 0;
+            const balance = totalCharges - received;
+            const completedDate = order.completedDate ? new Date(order.completedDate) : null;
+
+            if (balance > 0.01 && order.status === 'Completed' && completedDate && completedDate < sevenDaysAgo) {
+                const message = `पेमेंट रिमाइंडर ${order.customerName} के लिए। आर्डर नंबर ${order.orderNumber} का पेमेंट बाकी है। बैलेंस ${balance.toFixed(0)} रुपये है।`;
+                if (generateVoice) voiceQueue.push(message);
+                alerts.push({
+                    title: `#${order.orderNumber} - ${order.customerName}`,
+                    details: `Balance: <strong>₹${balance.toFixed(2)}</strong><br>Completed on: ${completedDate.toLocaleDateString()}`,
+                    voiceMessage: message
+                });
+            }
+        });
+        return alerts;
+    }
+
+    function getPickupAlerts(generateVoice = false) {
+        const alerts = [];
+        const today = new Date();
+        const tomorrow = new Date(today);
+        tomorrow.setDate(today.getDate() + 1);
+        const todayStr = today.toISOString().split('T')[0];
+        const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+        allOrders.forEach(order => {
+            const pickupDate = order.type === 'stitching' ? (order.items?.[0]?.pickupDate || null) : order.pickupDate;
+            if ((pickupDate === todayStr || pickupDate === tomorrowStr) && order.pipelineStatus !== 'completed') {
+                const when = pickupDate === todayStr ? 'आज' : 'कल';
+                const message = `पिकअप अलर्ट ${order.customerName} के लिए। आर्डर नंबर ${order.orderNumber} ${when} पिकअप के लिए तैयार है।`;
+                if (generateVoice) voiceQueue.push(message);
+                alerts.push({
+                    title: `#${order.orderNumber} - ${order.customerName}`,
+                    details: `Pickup due: <strong>${when.charAt(0).toUpperCase() + when.slice(1)}</strong> (${new Date(pickupDate + 'T00:00:00').toLocaleDateString()})`,
+                    voiceMessage: message
+                });
+            }
+        });
+        return alerts;
+    }
+
+    function getReminderAlerts(generateVoice = false) {
+        const alerts = [];
+        const now = new Date();
+        allReminders.forEach(reminder => {
+            const reminderDate = new Date(reminder.date);
+            if (!reminder.completed && reminderDate < now) {
+                const message = `रिमाइंडर: ${reminder.text}`;
+                if (generateVoice) voiceQueue.push(message);
+                alerts.push({
+                    title: reminder.text,
+                    details: `Scheduled for: ${reminderDate.toLocaleString()}`,
+                    voiceMessage: message
+                });
+            }
+        });
+        return alerts;
+    }
+
+    function renderAlertSection(title, borderColor, alerts) {
+        const section = document.createElement('div');
+        section.innerHTML = `
+            <h2 class="text-xl font-bold text-slate-700 mb-4">${title} (${alerts.length})</h2>
+            <div class="space-y-4">
+                ${alerts.map(alert => `
+                    <div class="alert-card bg-white p-4 rounded-lg shadow-sm ${borderColor}">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h3 class="font-semibold text-slate-800">${alert.title}</h3>
+                                <p class="text-sm text-slate-500 mt-1">${alert.details}</p>
+                            </div>
+                            <button class="speak-btn text-slate-400 hover:text-indigo-600 transition-colors" onclick="speak(this.dataset.message, null)" data-message="${CSS.escape(alert.voiceMessage)}">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+        alertsContainer.appendChild(section);
+    }
+    
+    function hourlyChecks() {
+        if (!autoSpeakEnabled) return;
+        
+        console.log("Running hourly checks...");
+        const hourlyAlerts = [];
+        const now = new Date();
+        const currentHour = now.getHours();
+
+        // Check for today's pickups
+        const todayStr = now.toISOString().split('T')[0];
+        allOrders.forEach(order => {
+             const pickupDate = order.type === 'stitching' ? (order.items?.[0]?.pickupDate || null) : order.pickupDate;
+             if (pickupDate === todayStr && order.pipelineStatus !== 'completed') {
+                 const trackerKey = `pickup-${order.id}`;
+                 if (hourlyCheckTracker[trackerKey] !== currentHour) {
+                     hourlyAlerts.push(`आज का पिकअप रिमाइंडर: आर्डर नंबर ${order.orderNumber} ${order.customerName} के लिए।`);
+                     hourlyCheckTracker[trackerKey] = currentHour;
+                 }
+             }
+        });
+        
+        // Check for overdue reminders
+        allReminders.forEach(reminder => {
+            if (!reminder.completed && new Date(reminder.date) < now) {
+                const trackerKey = `reminder-${reminder.id}`;
+                if (hourlyCheckTracker[trackerKey] !== currentHour) {
+                    hourlyAlerts.push(`बकाया रिमाइंडर: ${reminder.text}`);
+                    hourlyCheckTracker[trackerKey] = currentHour;
+                }
+            }
+        });
+
+        if (hourlyAlerts.length > 0) {
+            notificationSound.play().catch(e => console.error("Audio playback error:", e));
+            voiceQueue.push(...hourlyAlerts);
+            if (!isSpeaking) processQueue();
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        // Initial load
+        loadDataAndGenerateAlerts();
+
+        // Listen for changes from other tabs for instant updates
+        window.addEventListener('storage', (event) => {
+            if (event.key === 'tailorOrders' || event.key === 'tailorReminders') {
+                console.log('Detected data change from another tab. Refreshing alerts...');
+                loadDataAndGenerateAlerts();
+            }
+        });
+        
+        // Polling as a fallback for browsers that don't fire storage event reliably
+        setInterval(loadDataAndGenerateAlerts, 5000); // Check every 5 seconds
+        
+        // Set up hourly checks
+        setInterval(hourlyChecks, 3600 * 1000); // 1 hour
+        setTimeout(hourlyChecks, 2000); // Run once shortly after load
+
+        speakAllBtn.addEventListener('click', () => {
+            if (isSpeaking) {
+                speechSynthesis.cancel();
+                voiceQueue = [];
+                isSpeaking = false;
+            } else {
+                const allAlerts = [...getOverdueAlerts(true), ...getPickupAlerts(true), ...getReminderAlerts(true)];
+                // The get...Alerts(true) functions already populated the voiceQueue
+                processQueue();
+            }
+        });
+
+        autoSpeakToggle.addEventListener('change', () => {
+            autoSpeakEnabled = autoSpeakToggle.checked;
+            if (autoSpeakEnabled) {
+                systemStatusText.textContent = 'Auto-speak is ON. Listening for updates...';
+                statusIndicator.classList.add('speaking', 'bg-green-500');
+                statusIndicator.classList.remove('bg-slate-400');
+            } else {
+                systemStatusText.textContent = 'Auto-speak is OFF.';
+                statusIndicator.classList.remove('speaking', 'bg-green-500');
+                statusIndicator.classList.add('bg-slate-400');
+                speechSynthesis.cancel();
+                voiceQueue = [];
+                isSpeaking = false;
+            }
+        });
+        
+        // A fix for some browsers where getVoices() is not immediately available
+        speechSynthesis.onvoiceschanged = () => {
+            console.log("Voices loaded.");
+        };
+    });
+
+    // Make speak function globally accessible for inline onclick
+    window.speak = speak;
+</script>
+
+
+
+<script src="./script.js"></script></body></html>
