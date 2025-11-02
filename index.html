@@ -1,14 +1,18 @@
 <!DOCTYPE html>
-<html lang="en" class=""><head><script>window.livecodes = window.livecodes || {};</script><title>Untitled Project</title><meta name="title" content="Untitled Project"><meta charset="UTF-8">
+<html lang="en" class=""><head><script>window.livecodes = window.livecodes || {};</script><title>Alert </title><meta name="title" content="Alert "><meta name="description" content="All alert "><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="stylesheet" href="./style.css"><script src="https://cdn.jsdelivr.net/npm/es-module-shims@1.10.0/dist/es-module-shims.js" async=""></script><script type="importmap">{
   "imports": {}
 }</script></head><body>
+
 
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Real-Time Alerts - Navrose Stitching Point</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-database-compat.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         body {
@@ -97,6 +101,17 @@
     const statusIndicator = document.getElementById('auto-speak-status');
     const notificationSound = document.getElementById('notification-sound');
 
+    const firebaseConfig = {
+      apiKey: "AIzaSyC0_DQIiyaVQllFH4pxH1Dm3r2kFXXoOgc",
+      authDomain: "navrosetailorapp.firebaseapp.com",
+      databaseURL: "https://navrosetailorapp-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "navrosetailorapp",
+      storageBucket: "navrosetailorapp.firebasestorage.app",
+      messagingSenderId: "574369461681",
+      appId: "1:574369461681:web:dbe9d417706ab0b5643990"
+    };
+
+    let db;
     let allOrders = [];
     let allReminders = [];
     let previousOrdersState = new Map();
@@ -145,6 +160,47 @@
         
         const text = voiceQueue.shift();
         speak(text, processQueue);
+    }
+    
+    function initializeFirebase() {
+        try {
+            if (!firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+            }
+            db = firebase.database();
+            setupFirebaseListeners();
+        } catch (e) {
+            console.error("Firebase initialization failed:", e);
+        }
+    }
+
+    function setupFirebaseListeners() {
+        if (!db) return;
+
+        // Listen for new admin notifications (Marketplace Orders, Chats)
+        const adminNotificationsRef = db.ref('adminNotifications').orderByChild('timestamp').startAt(Date.now());
+        adminNotificationsRef.on('child_added', (snapshot) => {
+            if (!autoSpeakEnabled) return;
+            
+            const notif = snapshot.val();
+            if (notif) {
+                let message = '';
+                if (notif.type === 'new_order') {
+                    // Example notif.text: "New sale order for Cool T-Shirt"
+                    message = `मार्केटप्लेस से नया ऑर्डर आया है, ${notif.fromName} की तरफ से। ${notif.text}।`;
+                } else if (notif.type === 'new_message') {
+                    message = `${notif.fromName} का नया मैसेज आया है।`;
+                }
+
+                if (message) {
+                    notificationSound.play().catch(e => console.error("Audio playback error:", e));
+                    voiceQueue.push(message);
+                    if (!isSpeaking) {
+                        processQueue();
+                    }
+                }
+            }
+        });
     }
 
     function loadDataAndGenerateAlerts() {
@@ -349,6 +405,9 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
+        // Initialize Firebase
+        initializeFirebase();
+
         // Initial load
         loadDataAndGenerateAlerts();
 
